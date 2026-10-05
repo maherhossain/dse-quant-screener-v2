@@ -735,3 +735,54 @@ Density: ~1 event per year per stock (annual dividend). **Sparse by design.**
 - Store `stock`, `cash`, `right`, `premium`, `split`, `nodiv` as numeric
 - Keep `record_date` as the authoritative event date
 ---
+## Entry 10 — www.dse.com.bd /api/live/market
+- **URL:** `https://www.dse.com.bd/api/live/market`
+- **Method:** GET
+- **Headers required:** **none** (identical response with/without User-Agent, Referer, Accept)
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json; charset=utf-8
+- **Body size:** 7,466 bytes
+- **Raw file:** `audit/raw/20261005-215122__www.dse.com.bd__api_live_market__da39a3ee.json`
+### Structure
+Top-level: JSON **object**, 8 keys:
+`indices`, `totals`, `breadth`, `session`, `movers`, `topMovers`, `dailyTotals`, `previousSession`.
+### `indices` (array)
+Each element: `{key, value, change, percent, prev}`.
+Returns DSEX, DS30, DSES.
+Cross-check: DSEX value `5445.27691` == endpoint #6 close for 2026-10-05 ✅.
+### `totals` (object)
+| Field | Sample | Meaning |
+|-------|--------|---------|
+| trades | 172753 | today's total trades |
+| volume | 180855154 | today's share volume (DSEX-constituent scope, NOT market-wide) |
+| turnover | 5371.168 | **millions BDT** — matches endpoint #6's DSEX-total-volume unit ✅ |
+| marketCap | 6772519794713 | market cap in BDT |
+| tradeTime | "Oct 05, 2026 at 2:40 PM" | last trade time |
+### `breadth` (object)
+`{advanced, declined, unchanged, traded}` — market breadth snapshot.
+### `session` (object)
+Market calendar metadata: `isOpen`, `phase`, `tradingDay`, `opening`, `closing`,
+`date`, `sessionDate`, `today` (with `preOpening`, `opening`, `closing`, `postClosing`),
+and `next` (same structure for next trading day).
+**Useful for Module 5 live deployment** — determines if market is open and next session times.
+### `movers` (object)
+`{gainers: [...], losers: [...]}` — sample of top movers with OHLC + %.
+### `topMovers`, `dailyTotals`, `previousSession`
+To be inspected (pending).
+### Data quality
+- ✅ Clean JSON, no nulls observed in primary fields
+- ✅ Cross-validates with endpoint #6 (DSEX close, unit conventions)
+- ⚠️ **No historical capability — live-only snapshot.**
+- ⚠️ Volume scope differs from endpoint #6 for DSEX: this endpoint's
+  `totals.volume = 180,855,154` is DSEX-constituent shares, NOT whole-market
+### Verdict
+✅ **Usable as a live cross-check and for Module 5 live deployment.**
+- ✅ Confirms endpoint #4 (`get-once`) values
+- ✅ Session calendar metadata — useful for Module 5
+- ✅ Market breadth (advanced/declined) — no historical equivalent
+- ❌ **Not usable for backfill** — no date parameter, no historical data
+- ❌ **Not usable for regime history** — endpoint #6 remains primary
+**Recommendation:** poll this once per trading day in production (Module 5) to
+build a forward-only `market_snapshot_daily` table capturing breadth, session,
+and market totals.
+---
