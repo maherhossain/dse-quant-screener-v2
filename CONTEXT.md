@@ -197,6 +197,19 @@ Every feature that survives Module 2 must be documented here before it enters th
   yearly high/low, floor, category A/B/Z/SME, sector_id, block activity)
 - `https://www.dse.com.bd/api/live/market` — official DSE live market (access may be restricted)
 
+**Endpoint audit results (2026-10-05):** See `ENDPOINT_AUDIT.md` for full details.
+Primary sources by purpose:
+
+- **Bulk historical backfill (2014-03→present):** `provider.bullbd.com/shares/get-one-for-tv2?code={CODE}`
+- **Gap-fill (2013-01-28→2014-03-01):** `stocknow.com.bd/api/v1/instruments/{CODE}/history?data2=true&resolution=1D&skip=N`
+- **Live daily snapshot:** `provider.bullbd.com/shares/get-once`
+- **Instrument master:** `provider.bullbd.com/shares/get-names-tv`
+- **Corporate actions:** `provider.bullbd.com/corporate-actions/get-corporate-actions?share={CODE}`
+- **Block trades:** `provider.bullbd.com/shares/get-block-share?code={CODE}` (2023-06-21+ only)
+- **Live cross-check + breadth:** `www.dse.com.bd/api/live/market`
+
+**Rejected:** `provider.bullbd.com/eod/get-eop-data-by-code` (rolling period aggregates only).
+
 **Note on `trade_value`:** in BullBD data, `vl` is in **millions of BDT**. Every consumer must
 be explicit about unit conversion.
 
@@ -205,6 +218,7 @@ be explicit about unit conversion.
 - 2022 Q4 – 2023 Q4: deep floor. Do NOT include in backtests.
 - 2024 Q1 – Q2: partial floor. Borderline; handle carefully.
 - 2024 Q3 onwards: recovered.
+  **Study start:** 2013-01-28 (DSEX launch). Pre-2013 DSEX values are DGEN and must be discarded.
 
 ## Environment
 
@@ -247,3 +261,24 @@ V1 backup tables to keep for reference:
   in isolation. Conditional IC (by regime, sector, cap, liquidity) is a first-class finding,
   not a secondary analysis. This change avoids anchoring on possibly-wrong priors and lets the
   data determine which signals, and which conditions, actually matter.
+- **2026-10-05:** Endpoint audit complete. 11 endpoints classified. Full details in ENDPOINT_AUDIT.md.
+- **2026-10-05:** Study start date moved to **2013-01-28** (DSEX launch). DSEX archive
+  before this date is DGEN, not DSEX. Individual stock bars may go back further but
+  regime analysis uses DSEX from 2013-01-28. Data split revised accordingly:
+  Research 2013-01-28→2020-12-31, Validation 2021-01-01→2023-12-31, Test 2024-01-01→2026-10-05.
+- **2026-10-05:** Primary backfill strategy: **bullbd get-one-for-tv2** (endpoint #7,
+  single call per instrument, 2014-03-02→present). Gap-fill via **stocknow history**
+  (endpoint #6) for 2013-01-28→2014-03-01.
+- **2026-10-05:** Daily live sync uses **bullbd get-once** (endpoint #4) as primary,
+  **DSE official live market** (endpoint #10) as cross-check.
+- **2026-10-05:** Volume unit conventions locked: `value`/`vl`/`turnover` in millions of BDT;
+  `volume`/`v` in raw shares. DSEX/DS30/DSES volume definitions differ between sources:
+  endpoint #6's index volume = whole-market; endpoint #7's index volume = constituent-only.
+  **Use endpoint #6 for index volume; document per-source semantics in Module 1.**
+- **2026-10-05:** Corporate actions (endpoint #8) sparse — ~1 event/stock/year since 2014.
+  Used for filtering (ex-dividend windows), not as a primary feature.
+- **2026-10-05:** Block trades (endpoint #9) coverage starts **2023-06-21**. H2 cannot
+  be research-tested on 2013–2023. Decision deferred to Module 2:
+  keep H2 as live-only signal, replace with proxy, or drop.
+- **2026-10-05:** DSE official live market (endpoint #10) exposes 10-day rolling breadth
+  history (`dailyTotals`). Forward-only; cannot backfill. Useful for Module 5 monitoring.

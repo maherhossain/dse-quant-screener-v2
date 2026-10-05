@@ -15,18 +15,20 @@
 
 ## Current state
 
-- No code written yet in v2.
+- Module 0 in progress.
+- **Endpoint audit COMPLETE** (2026-10-05). 11 endpoints classified.
+  Full details in `ENDPOINT_AUDIT.md`.
+- Key findings: study starts 2013-01-28; backfill strategy defined;
+  block-trade data limited to 2023-06-21+; volume unit conventions locked.
 - No database created yet for v2.
-- Awaiting start of Module 0.
+- No schema designed yet.
 
 ## Next action
 
-- Begin Module 0: Foundation.
-- First sub-step: audit the API endpoints (test each one, document response format and data quality).
-- Second sub-step: design the v2 database schema.
-- Third sub-step: define module interfaces.
+- Design the v2 database schema (Module 0 second sub-step).
+- Then: define module interfaces (third sub-step).
 
 ## Do not proceed until
 
-- Endpoint audit is complete and each endpoint is classified as usable / unreliable / blocked.
 - Database schema is reviewed and approved.
+- Module interfaces are defined and documented.
