@@ -254,3 +254,83 @@ Two of these (DEBBXDENIM, DEBBXKNI) have **stale non-null 7d–365d values**
 - anything relying on `nv`/`new_value` until semantics are verified
 
 ---
+## Entry 4 — provider.bullbd.com /shares/get-once
+- **URL:** `https://provider.bullbd.com/shares/get-once`
+- **Method:** GET
+- **Headers required:** none
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json; charset=utf-8
+- **Body size:** 150,500 bytes
+- **Raw file:** `audit/raw/20261005-181655__provider.bullbd.com__shares_get-once__da39a3ee.json`
+### Structure
+Top-level: JSON **array**, length **503**. One object per currently-active instrument.
+### Fields (per instrument)
+| Field | Type | Meaning | Nulls | Verified? |
+|-------|------|---------|-------|-----------|
+| c | str | Ticker code | 0 | ✅ |
+| q | str | **Composite: `{category}-{type}`** (e.g. `A-EQ`, `Z-EQ`, `A-MF`, `A-IDX`, `A-GOVDBT`, `A-CB`, `N-CB`) | 0 | ✅ |
+| o | num | Open (today) | 0 | ✅ |
+| h | num | High (today) | 0 | ✅ |
+| l | num | Low (today) | 0 | ✅ |
+| ltp | num | Last traded price; **0 if no trade** | 0 | ✅ |
+| sp | num | Snapshot price (used when ltp=0) | 0 | ✅ |
+| cp | num | **Closing price — use this as today's close** | 0 | ✅ |
+| ycp | num | Yesterday's close | 0 | ✅ |
+| price_change | num | Abs price change today | 0 | ✅ |
+| price_change_per | num | % price change today | 0 | ✅ |
+| tr | int | Trade count today | 0 | ✅ |
+| v | int | Volume today (raw shares) | 0 | ✅ |
+| vl | num | **Value today (millions BDT — CONFIRMED)** | 0 | ✅ |
+| t | str | ISO 8601 UTC timestamp ("...Z"); DSE = UTC+6 | 0 | ✅ |
+| changed | bool | Moved today? | 37 null | ✅ |
+| halt | str | `''` normal, `halt:l` / `~halt:l` halted, null unstated | 24 null | ✅ |
+| vn | num | Unverified (likely NAV for funds) | 0 | ❌ |
+| trn | int | Unverified | 0 | ❌ |
+| vln | num | Unverified (≈ vl/v ratio?) | 0 | ❌ |
+| tradedAfterSec | int | Unverified — seconds since some reference | 0 | ❌ |
+| changeNew | num | Unverified | 0 | ❌ |
+### Type agreement with endpoint #2
+`q.split('-', 1)` gives (category, type). Type distribution from `q`:
+EQ=359, GOVDBT=71, MF=37, IDX=24, CB=12. **Exactly matches BullBD `/shares/get-names-tv` counts.**
+Category from `q`: A, B, Z, N — **does NOT include SME** (stocknow's SME=20 are folded into A or B here).
+### `vl` unit — CONFIRMED
+`implied = vl * 1e6 / v` matches `ltp` for ACI (181.15 vs 181), BEXIMCO (20.07 vs 19.9),
+GP (240.45 vs 240.2), SQURPHARMA (217.50 vs 217.6), BATBC (221.30 vs 221),
+BRACBANK (64.85 vs 65). **`vl` is in millions of BDT.**
+### `cp` vs `ltp`
+When `ltp > 0`, `cp == ltp`. When no trade occurred (`ltp = 0`), `cp = sp`.
+**Use `cp` as the daily close.** `ltp` can legitimately be 0.
+### `halt` values
+`''` = 469 (normal), `null` = 24, `halt:l` = 8, `~halt:l` = 2.
+The 10 halted rows include real equities: `FAREASTFIN`, `FASFIN`, `ILFSL`,
+`PREMIERLEA` (all Z), `TECHNODRUG` (A), plus 3 T-bonds, 1 MF, 1 CB.
+### Timestamps
+`t` is ISO 8601 **UTC** ("...Z"). DSE operates in UTC+6 (BST).
+One stale row (`ABBLPBOND`, `t = 2026-06-10`) shows `get-once` is not a strict
+"updated today" filter — some suspended rows persist. **Freshness filter needed.**
+### Universe vs other endpoints
+- get-once: 503
+- stocknow instruments: 473
+- bullbd names: 536
+- **in all 3: 431**
+- **only in get-once: 0** — get-once ⊂ (stocknow ∪ names)
+- **in names not get-once: 33** — the dead/unclassified set (1STICB family,
+  BDSERVICE, CDSET, GLAXOSMITH, MODERNDYE, MONNOSTAF, SAVAREFR, etc.)
+### Data quality
+- ✅ Zero nulls on all price/volume/timestamp fields.
+- ✅ Field names compact but unambiguous.
+- ⚠️ `vn`, `trn`, `vln`, `tradedAfterSec`, `changeNew` — **do not use until verified.**
+- ⚠️ `q` is derived; parse to (category, type), don't store as-is.
+- ⚠️ `t` is UTC — convert to BST (or store UTC + tz) consistently in Module 1.
+- ⚠️ `get-once` excludes the 33 dead codes — useful as a live filter but
+  **not** as the historical universe definition.
+- ⚠️ 24 null-`halt` rows + 10 non-empty-`halt` rows — filter for live trading.
+### Verdict
+✅ **Usable** as the primary live-snapshot endpoint. This is the fastest way
+to get today's OHLCV + trades for the whole market in a single call.
+**Daily sync (Module 1) should use this.**
+Not the source for:
+- historical daily bars (endpoints #6, #7)
+- historical snapshots (this is "now" only)
+- dead/delisted instruments (use endpoints #2/#3 for those)
+---
