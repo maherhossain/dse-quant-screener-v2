@@ -659,3 +659,79 @@ block data exists in this endpoint, regardless of instrument.
 and let Module 2 evaluate whether H2's concept can be tested through a
 different (pre-2023) proxy.
 ---
+## Entry 8 — provider.bullbd.com /corporate-actions/get-corporate-actions?share={CODE}
+- **URL pattern:** `https://provider.bullbd.com/corporate-actions/get-corporate-actions?share={CODE}`
+- **Method:** GET
+- **Headers required:** none
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json; charset=utf-8
+- **Sample raw files:**
+  - `audit/raw/20261005-214404__provider.bullbd.com__corporate-actions_get-corporate-actions__a30038d0.json` (ACI, 12 rows)
+  - `audit/raw/20261005-214528__provider.bullbd.com__corporate-actions_get-corporate-actions__01c6d614.json` (GP, 7 rows)
+  - `audit/raw/20261005-214545__provider.bullbd.com__corporate-actions_get-corporate-actions__24bc699a.json` (BRACBANK, 13 rows)
+  - `audit/raw/20261005-214558__provider.bullbd.com__corporate-actions_get-corporate-actions__27f50178.json` (SQURPHARMA, 12 rows)
+### Structure
+Top-level: JSON **array**, one object per corporate-action announcement.
+Length varies by instrument: 7–13 rows observed for large caps over 12 years.
+### Fields (per row)
+| Field | Type | Meaning | Notes |
+|-------|------|---------|-------|
+| _id | str | MongoDB ObjectId | ignore |
+| code | str | Ticker | ✅ |
+| publish_date | str ISO | Announcement timestamp (UTC) | ⚠️ shifted +1 day — see below |
+| stock | str | Stock dividend % | e.g. "15" = 15% bonus shares |
+| cash | str | Cash dividend % | e.g. "105" = 105% cash (Tk 10.5/share at Tk 10 face) |
+| nodiv | str | No-dividend flag | "0" = has dividend, "1" = no dividend |
+| year_ended_on | str ISO | Fiscal year end | |
+| agm_date | str ISO | AGM date | `1969-12-31T18:00Z` = null sentinel |
+| news_id | str | Reference | ignore |
+| source | str | Data source tag | always "manualauto" in sample |
+| record_date_confirm | int | 0/1 | whether record date is confirmed |
+| right | int \| str | Rights issue % | 0 = none |
+| premium | int \| str | Rights premium | 0 = none |
+| split | int \| str | Split ratio | 0 = none |
+| record_date | str ISO | Entitlement record date | **critical as-of field** |
+| updated_at | str ISO | Last modification | ignore |
+| notificationSent | obj | App telemetry | ignore |
+### Type notes
+- `stock`, `cash`, `nodiv` → **always str**
+- `right`, `premium`, `split` → **mostly int, occasionally str**
+- Cast all with `float()` at load time
+### ⚠️ Date shift — +1 day
+All ISO timestamps are shifted to **18:00 UTC** (e.g. `2025-10-28T18:00Z`), which
+is **00:00 BST on the next calendar day**. To recover the true BST date:
+**add 1 day** to the ISO date.
+`agm_date = "1969-12-31T18:00:00.000Z"` is a null sentinel (epoch 0 shifted
+by 1 day). Filter out.
+### Coverage
+| Instrument | Rows | Newest | Oldest |
+|------------|------|--------|--------|
+| ACI | 12 | 2025-10-28 | 2014-04-30 |
+| GP | 7 | 2026-07-14 | 2014-07-22 |
+| BRACBANK | 13 | 2026-04-26 | 2014-03-02 |
+| SQURPHARMA | 12 | 2025-10-22 | 2014-07-20 |
+**Archive floor: 2014-03.** Aligned with endpoint #7.
+Density: ~1 event per year per stock (annual dividend). **Sparse by design.**
+### Data quality
+- ✅ Clean JSON, no nulls observed
+- ✅ All dates present
+- ⚠️ Numeric fields are strings (must cast)
+- ⚠️ Dates +1 day shift — must correct at parse time
+- ⚠️ `agm_date` null sentinel is 1969-12-31 (epoch-zero) — filter
+- ⚠️ `split`, `right`, `premium` all 0 in sampled 44 rows; need broader test
+  to confirm they're ever nonzero
+- ⚠️ All rows have `nodiv=0` in sample; no example of `nodiv=1` yet
+- ⚠️ Sparse — not every stock has an event every year
+### Verdict
+✅ **Usable** for corporate-action context:
+- Filter out known record-date / ex-date windows from features
+- Provide "days since last corporate action" as a feature
+- Flag stocks in dividend/corporate-action months for caution
+**Not usable as a primary feature signal** — too sparse.
+### Module 1 handling
+- Load all rows into `corporate_actions` table
+- Correct date shift (+1 day) at parse
+- Filter `agm_date = 1969-12-31` as null
+- Store `stock`, `cash`, `right`, `premium`, `split`, `nodiv` as numeric
+- Keep `record_date` as the authoritative event date
+---
