@@ -1,0 +1,35 @@
+@'
+# --- Python ---
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# --- Environment / secrets ---
+.env
+.env.local
+
+# --- Raw API responses ---
+audit/raw/
+
+# --- Data artifacts ---
+data/
+*.csv
+*.parquet
+*.feather
+*.h5
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+'@ | Set-Content -Encoding UTF8 .gitignore
