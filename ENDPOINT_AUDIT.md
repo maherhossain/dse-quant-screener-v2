@@ -535,3 +535,61 @@ OHLC match exactly. **Volume definition differs:**
 - Store raw JSON per page (audit-grade) then parse to DB
 
 ---
+## Entry 7 — provider.bullbd.com /shares/get-one-for-tv2?code={CODE}
+- **URL pattern:** `https://provider.bullbd.com/shares/get-one-for-tv2?code={CODE}`
+- **Method:** GET
+- **Headers required:** none
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json; charset=utf-8
+- **Sample raw files:**
+  - `audit/raw/20261005-205639__provider.bullbd.com__shares_get-one-for-tv2__4c36c9f0.json` (DSEX)
+  - `audit/raw/20261005-210514__provider.bullbd.com__shares_get-one-for-tv2__59370348.json` (ACI)
+  - `audit/raw/20261005-211722__provider.bullbd.com__shares_get-one-for-tv2__33d9d7b7.json` (ROBI)
+### Structure
+Top-level: JSON **object**, 6 keys. Each value is a **flat array** of the same length:
+| Key | Field | Unit | Notes |
+|-----|-------|------|-------|
+| o | open | price | verified vs snapshot |
+| h | high | price | verified |
+| l | low | price | verified |
+| c | close | price | verified |
+| v | volume | raw shares | see "volume semantics" below |
+| d | timestamp | ms epoch (UTC midnight) | `1393718400000` = 2014-03-02 |
+### Coverage
+| Instrument | Bars | Coverage |
+|------------|------|----------|
+| DSEX | 3,001 | 2014-03-02 → 2026-10-05 |
+| ACI | 3,001 | 2014-03-02 → 2026-10-05 |
+| ROBI | 1,379 | 2020-12-24 → 2026-10-05 (IPO) |
+**Global archive floor: 2014-03-02.** Per-instrument coverage bounded by IPO.
+One call returns the entire history — no pagination.
+### OHLC cross-validation vs endpoint #6
+**2021-06-01 DSEX:**
+| Field | Endpoint #7 | Endpoint #6 |
+|-------|-------------|-------------|
+| open | 5990.99 | 5990.99 ✅ |
+| high | 6040.08 | 6040.08 ✅ |
+| low | 5988.27 | 5988.27 ✅ |
+| close | 5993.33 | 5993.33 ✅ |
+| volume | 464,588,000 | 19,035,259,000 ⚠️ |
+OHLC identical. Volume off by ~41×.
+### ⚠️ Volume semantics
+**Endpoint #7's DSEX `volume` = DSEX-constituent share volume** (matches v1 index_data).
+**Endpoint #6's DSEX `volume` = whole-market share volume.**
+For per-stock instruments (e.g. ACI), the two are expected to match — verify in Module 1.
+### Data quality
+- ✅ Single-call full history — vastly more efficient than #6 for backfill
+- ✅ OHLC identical to endpoint #6 on all cross-checks
+- ✅ Correct per-listing coverage (ROBI starts at IPO)
+- ✅ Timestamps are ms epoch, UTC midnight — trivial to parse
+- ⚠️ Archive floor 2014-03-02 — missing 2013-01-28 → 2014-03-01 (~230 trading days)
+- ⚠️ Volume definition differs from #6 for indices — must be documented and never mixed
+- ⚠️ Rate limiting not tested
+### Verdict
+✅ **PRIMARY BULK BACKFILL SOURCE** for Module 1.
+- One HTTP call per instrument → ~430 calls total for full universe
+- Backfill estimate: 5–15 minutes (vs ~2 hours via endpoint #6)
+**Gap-fill source:** endpoint #6 for 2013-01-28 → 2014-03-01
+**Volume caveat:** for DSEX/DS30/DSES, prefer endpoint #6's volume (market-wide);
+for individual stocks, either is fine — confirm in Module 1.
+---
