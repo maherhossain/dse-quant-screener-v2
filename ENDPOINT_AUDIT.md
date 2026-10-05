@@ -593,3 +593,69 @@ For per-stock instruments (e.g. ACI), the two are expected to match — verify i
 **Volume caveat:** for DSEX/DS30/DSES, prefer endpoint #6's volume (market-wide);
 for individual stocks, either is fine — confirm in Module 1.
 ---
+## Entry 9 — provider.bullbd.com /shares/get-block-share?code={CODE}
+- **URL pattern:** `https://provider.bullbd.com/shares/get-block-share?code={CODE}`
+- **Method:** GET
+- **Headers required:** none
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json; charset=utf-8
+- **Sample raw files:**
+  - `audit/raw/20261005-212913__provider.bullbd.com__shares_get-block-share__59370348.json` (ACI, 115 rows)
+  - `audit/raw/20261005-212951__provider.bullbd.com__shares_get-block-share__e8378573.json` (BEXIMCO, 427 rows)
+  - `audit/raw/20261005-213012__provider.bullbd.com__shares_get-block-share__70c423ff.json` (SQURPHARMA, 270 rows)
+### Structure
+Top-level: JSON **array**, one object per block-trade day per instrument.
+Length varies by instrument: ACI 115, BEXIMCO 427, SQURPHARMA 270.
+### Fields (per row)
+| Field | Type | Meaning | Notes |
+|-------|------|---------|-------|
+| _id | str | MongoDB ObjectId | ignore |
+| code | str | Ticker | ✅ |
+| date | str | "YYYY-MM-DD" (date string) | ✅ |
+| __v | int | MongoDB version | ignore, always 0 |
+| maxPrice | num | Highest block price that day | ✅ |
+| minPrice | num | Lowest block price that day | ✅ |
+| trades | int | Number of block trades | ✅ |
+| value | num | Total block value, **millions BDT** | ✅ verified (`value * 1e6 / volume == price`) |
+| volume | int | Total block shares | ✅ |
+### Unit verification
+ACI 2023-06-21: `volume=4175, maxPrice=minPrice=241, value=1.006`.
+`1.006 * 1e6 / 4175 = 241.0` ✅ — matches price. **`value` is millions BDT.**
+### Coverage — ⚠️ ALL TESTED STOCKS START 2023-06-21
+| Instrument | Rows | First date |
+|------------|------|------------|
+| ACI | 115 | 2023-06-21 |
+| BEXIMCO | 427 | 2023-06-21 |
+| SQURPHARMA | 270 | 2023-06-21 |
+**BullBD began recording block trades on 2023-06-21.** No pre-2023-06-21
+block data exists in this endpoint, regardless of instrument.
+### Data quality
+- ✅ Clean JSON, no nulls observed
+- ✅ Value unit confirmed
+- ✅ Multi-trade days aggregated into one row (with `trades` count)
+- ⚠️ Only one price range per day (`minPrice`/`maxPrice`) — no individual trade breakdown
+- ⚠️ **No side indicator** (buy vs sell) — cannot distinguish accumulation from
+  distribution from this endpoint alone
+- ⚠️ **No participant identity** — cannot distinguish sponsor/director from
+  third-party block
+- ⚠️ **Coverage: 2023-06-21 → present only** (~2.5 years)
+### Verdict
+✅ **Usable, but with major caveat.**
+- Data quality is high
+- **Historical coverage is too short for H2 to be research-tested** on
+  2013–2020 research or 2021–2023 validation periods
+- H2 testable only on **2023-06-21 → present**, which falls entirely within
+  the final test period (2024–2026) plus a sliver of validation
+**Implications:**
+1. H2 cannot be evaluated against the pre-committed kill criteria (which
+   require validation-set IC ≥ 0.02). There is insufficient validation data.
+2. Module 2 must decide:
+   - **Keep H2 as a live-only hypothesis** — used in production but not backtested
+   - **Replace H2 with a broader accumulation proxy** — e.g. volume+range based
+   - **Drop H2 entirely**
+3. The **concept** of block-trade activity remains viable as a *live* signal.
+   It is not a research-testable feature.
+**Recommendation:** record the finding, keep the endpoint for live deployment,
+and let Module 2 evaluate whether H2's concept can be tested through a
+different (pre-2023) proxy.
+---
