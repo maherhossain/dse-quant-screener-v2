@@ -146,3 +146,111 @@ A=304, Z=123, B=74, N=2, null=33.
 - **Category** kept as filterable attribute; do NOT exclude Z at load time.
 
 ---
+
+## Entry 3 — stocknow.com.bd /api/v1/instruments
+
+- **URL:** `https://stocknow.com.bd/api/v1/instruments`
+- **Method:** GET
+- **Headers required:** none
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json
+- **Body size:** 349,198 bytes
+- **Raw file:** `audit/raw/20261005-180632__stocknow.com.bd__api_v1_instruments__da39a3ee.json`
+
+### Structure
+
+Top-level: JSON **object**, **473 keys**. Each key is a ticker code (or, for sector
+indices, a sector name string); each value is a flat daily-snapshot object.
+
+### Fields (per instrument)
+
+| Field                         | Type | Meaning                                                                | Nulls      |
+| ----------------------------- | ---- | ---------------------------------------------------------------------- | ---------- |
+| sector_id                     | int  | FK to `/api/v1/sectors`; **23 = Index bucket, not listed in /sectors** | 22         |
+| code                          | str  | Ticker                                                                 | 0          |
+| name                          | str  | Full name                                                              | 1          |
+| spot                          | num  | Live price (0 after-hours)                                             | 0          |
+| category                      | str  | A / B / Z / SME / N / ""                                               | 33         |
+| open, high, low, close        | num  | Today's OHLC                                                           | 9,10,10,10 |
+| 7d, 15d, 30d, 90d, 180d, 365d | num  | Price N calendar days ago (not MAs)                                    | 9 each     |
+| ycp                           | num  | Yesterday's close                                                      | 9          |
+| trades                        | int  | Today's trade count                                                    | 9          |
+| volume                        | int  | Today's share volume (**raw shares**)                                  | 9          |
+| value                         | num  | Today's trade value (**millions BDT — CONFIRMED**)                     | 9          |
+| yearly_high, yearly_low       | num  | 52-week range                                                          | 12         |
+| floor                         | num  | Current floor price (0 = none); **NOT historical**                     | 49         |
+| nv                            | num  | Probably NAV (funds) — **UNVERIFIED**                                  | 20         |
+| new_value                     | num  | **UNVERIFIED**                                                         | 70         |
+| sme                           | int  | SME board flag (0/1)                                                   | 0          |
+| analysisTitle                 | str  | Bangla commentary — **ignore for quant**                               | 49         |
+| updated_at                    | str  | 'YYYY-MM-DD HH:MM:SS' — last update                                    | 0          |
+
+### `value` unit — CONFIRMED
+
+`implied_price = value * 1e6 / volume` gives plausible DSE prices:
+
+- ACI → 181.15, BATBC → 221.30, BEXIMCO → 20.07, BRACBANK → 64.85,
+  GP → 240.45, SQURPHARMA → 217.50
+  **`value` is in millions of BDT.** Matches BullBD `vl`.
+
+### Category distribution (473)
+
+A=213, Z=125, B=74, **SME=20**, N=5, ""=3, null=33.
+Disagrees with endpoint #2 (A=304, Z=123, B=74, N=2, null=33). Stocknow
+splits SME out; BullBD does not. Module 1 must reconcile.
+
+### Sector linkage
+
+Present `sector_id`s: {1..22, 23, 25, None}.
+
+- **Orphan `sector_id = 23`** — belongs to `DSEX`, `DS30`, `DSES` (indices).
+  `/api/v1/sectors` does not list id 23. **Data-quality flag on endpoint #1.**
+- **`sector_id = None`** — 22 sector-index rows keyed by sector name (e.g.
+  key = "Bank"). These duplicate the sector indices already present elsewhere.
+
+### Dead/suspended instruments (10 rows)
+
+Filter by `updated_at` staleness. All 10 stale rows have `updated_at = 2025-04-30`:
+DEBARACEM, DEBBDLUGG, DEBBDWELD, DEBBDZIPP, DEBBXDENIM, DEBBXFISH, DEBBXKNI,
+DEBBXTEX, Debenture (literal key), MTBPBOND.
+Two of these (DEBBXDENIM, DEBBXKNI) have **stale non-null 7d–365d values**
+(1450, 900) — would poison naive features. **Staleness filter is mandatory.**
+
+### Universe vs endpoint #2 (BullBD names)
+
+- in both: 444
+- only in stocknow (29): mostly debentures + a handful of equities
+  (`ACHIASF`, `AMPL`, `AOPLC`, `APEXWEAV`, `BDPAINTS`, `CRAFTSMAN`, `HIMADRI`,
+  `KBSEED`, `KFL`, `MAMUNAGRO`, `MASTERAGRO`, `MKFOOTWEAR`) + the malformed
+  key `"Debenture"`
+- only in BullBD (92): bonds, MFs, unclassified equities (`CDSET`,
+  `MODERNDYE`, `SLIPLC`, `SPPCL`)
+  **Conclusion: neither endpoint alone is complete. Module 1 must union.**
+
+### Data quality
+
+- ✅ Clean JSON, all documented fields present on most rows.
+- ⚠️ Two sector-index representations (ticker-keyed with sector_id=23 vs
+  name-keyed with sector_id=None) — dedupe needed.
+- ⚠️ `updated_at` is the primary freshness signal. Use it as a hard filter
+  in Module 1 (drop anything not updated within last N trading days).
+- ⚠️ Malformed placeholder row `code="Debenture"` (all nulls except trades/volume/value = 0).
+- ⚠️ `floor` is current, not historical — useless for backtest floor detection.
+- ⚠️ `nv`, `new_value` semantics unknown — **do not use in features until verified.**
+- ⚠️ `category` disagrees with endpoint #2 on A/SME — Module 1 must reconcile.
+
+### Verdict
+
+✅ **Usable** as the daily snapshot source. This is the primary source for:
+
+- today's OHLCV (cross-check with endpoint #4 `get-once`)
+- historical price offsets (7/15/30/90/180/365d) — but these are **calendar days,
+  not trading days** — verify
+- 52-week high/low
+- category, sector_id, SME flag
+  **Not** the source for:
+- historical daily bars (that's endpoints #6, #7)
+- floor-period detection (use DSEX + known BSEC dates)
+- anything relying on `nv`/`new_value` until semantics are verified
+
+---
