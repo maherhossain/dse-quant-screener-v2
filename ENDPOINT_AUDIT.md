@@ -334,3 +334,56 @@ Not the source for:
 - historical snapshots (this is "now" only)
 - dead/delisted instruments (use endpoints #2/#3 for those)
 ---
+## Entry 5 — provider.bullbd.com /eod/get-eop-data-by-code?code=DSEX
+- **URL:** `https://provider.bullbd.com/eod/get-eop-data-by-code?code=DSEX`
+- **Method:** GET
+- **Headers required:** none
+- **HTTP status:** 200 OK
+- **Content-Type:** application/json; charset=utf-8
+- **Body size:** 4,425 bytes (invariant)
+- **Raw file:** `audit/raw/20261005-195456__provider.bullbd.com__eod_get-eop-data-by-code__4c36c9f0.json`
+- **Also tested:** `?code=ACI`, `?code=DSEX&period=1`, `?code=DSEX&limit=500`,
+  `?code=DSEX&from=2014-01-01` — **all return identical shape and identical
+  body for the same code. Query params `period`, `limit`, `from` are silently ignored.**
+### Structure
+Top-level: JSON **object**, 14 keys. Keys are **period lengths in days**:
+`1, 5, 7, 10, 15, 18, 22, 30, 45, 60, 90, 125, 255, 365`.
+Each value is a **rolling-window aggregate ending today** — NOT a time series.
+### Fields (per period window)
+| Field | Meaning |
+|-------|---------|
+| code | Ticker (same across all periods) |
+| o | Open at start of window |
+| c | Close at end of window (= today's close) |
+| h | Highest high across window |
+| l | Lowest low across window |
+| t | Sum of trades across window |
+| v | Sum of volume across window |
+| vl | Sum of value across window (millions BDT) |
+| d | Date of the window end (always today, ISO Z) |
+| ltp | Last traded price (= today) |
+| price_change | Change over the window |
+| price_change_per | % change over the window |
+| ycp | Close at start of window |
+| period | Window length (matches the key) |
+| avg_value | vl / period |
+| avg_volume | v / period |
+| avg_trade | t / period |
+| avg_close | Mean close across window |
+### Verdict
+❌ **Not usable as a historical time-series source.** Returns rolling aggregates
+as of *now*, with 14 fixed windows. Query parameters do not change the response.
+**Usable only for:**
+- ⚠️ **Sanity-check** — compare our independently-computed rolling features
+  against these 14 windows for today. This is a legitimate use and worth doing
+  once in Module 2.
+- **NOT for feature construction** — as-of semantics of these windows are opaque
+  (e.g. is "5" trading days or calendar days? confirmed only that `avg_value`
+  = vl/5 for `period=5`, so it's a mechanical divisor, not a calendar). Using
+  these to build features introduces leakage risk we can't audit.
+**Implication for Module 1:**
+DSEX daily history must come from a different endpoint. Candidates:
+- Endpoint #6: `stocknow.com.bd/api/v1/instruments/DSEX/history`
+- Endpoint #7: `provider.bullbd.com/shares/get-one-for-tv2?code=DSEX`
+Those are audited next.
+---
