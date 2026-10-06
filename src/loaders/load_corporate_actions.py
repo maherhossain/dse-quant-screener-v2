@@ -24,7 +24,12 @@ TARGET_TABLE = "corporate_actions"
 SOURCE_PROVIDER = "bullbd"
 EP8_URL = "https://provider.bullbd.com/corporate-actions/get-corporate-actions?share={code}"
 SLEEP_BETWEEN_CALLS = 0.1
-NULL_DATE_SENTINEL = date(1970, 1, 1)
+NULL_DATE_MAX = date(1970, 1, 2)
+
+
+def _is_null_sentinel(d: Optional[date]) -> bool:
+    return d is not None and d <= NULL_DATE_MAX
+
 def _parse_iso_date_plus1(raw):
     if raw is None:
         return None
@@ -95,17 +100,17 @@ def _build_rows(instrument_id, code, entries):
                         code, news_id)
             continue
         year_ended_on = _parse_iso_date_plus1(e.get("year_ended_on"))
-        if year_ended_on == NULL_DATE_SENTINEL:
+        if _is_null_sentinel(year_ended_on):
             year_ended_on = None
 
         agm_date = _parse_iso_date_plus1(e.get("agm_date"))
-        if agm_date == NULL_DATE_SENTINEL:
+        if _is_null_sentinel(agm_date):
             agm_date = None
 
         record_date = _parse_iso_date_plus1(e.get("record_date"))
-        if record_date == NULL_DATE_SENTINEL:
+        if _is_null_sentinel(record_date):
             record_date = None
-            
+
         rows.append((
             code,
             instrument_id,
