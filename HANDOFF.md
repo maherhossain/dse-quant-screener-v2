@@ -15,20 +15,21 @@
 
 ## Current state
 
-- Module 0 in progress.
-- **Endpoint audit COMPLETE** (2026-10-05). 11 endpoints classified.
-  Full details in `ENDPOINT_AUDIT.md`.
-- Key findings: study starts 2013-01-28; backfill strategy defined;
-  block-trade data limited to 2023-06-21+; volume unit conventions locked.
-- No database created yet for v2.
-- No schema designed yet.
+- **Module 0 COMPLETE.**
+- Endpoint audit done (11 endpoints, 10 usable, 1 rejected).
+- Database schema designed and applied: 11 tables in `dse_quant_v2`.
+- Interfaces defined in `INTERFACES.md`.
+- Study start date: **2013-01-28** (DSEX launch).
+- Backfill strategy: endpoint #7 primary, endpoint #6 gap-fill.
+- Block-trade coverage: 2023-06-21 onward (H2 caveat).
 
 ## Next action
 
-- Design the v2 database schema (Module 0 second sub-step).
-- Then: define module interfaces (third sub-step).
+- Begin Module 1: Data Pipeline.
+- First sub-step: build the initial reference loaders (sectors, indices)
+  and the instruments master (union endpoints #2 and #3).
 
 ## Do not proceed until
 
-- Database schema is reviewed and approved.
-- Module interfaces are defined and documented.
+- Module 1's first commit is verified, and `sectors` + `instruments` +
+  `indices` are populated and checked for row counts.
