@@ -1,35 +1,34 @@
-@'
 # --- Python ---
-.venv/
-venv/
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
-.ipynb_checkpoints/
+.ruff_cache/
+
+# --- Virtualenv ---
+.venv/
+venv/
+env/
 
 # --- Environment / secrets ---
 .env
-.env.local
-
-# --- Raw API responses ---
-audit/raw/
-
-# --- Data artifacts ---
-data/
-*.csv
-*.parquet
-*.feather
-*.h5
 
 # --- Logs ---
-*.log
 logs/
+*.log
+
+# --- Audit raw payloads (large, machine-local) ---
+audit/raw/
 
 # --- Editor / OS ---
 .vscode/
 .idea/
+*.swp
 Thumbs.db
 desktop.ini
-'@ | Set-Content -Encoding UTF8 .gitignore
+
+# --- Local scratch ---
+scratch/
+tmp/
